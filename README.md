@@ -58,6 +58,7 @@ The rooms are rendered in Blender. The prompts are captured from the page and pl
 |---|---|
 | Frameworks | Any. Job, gang and item checks read QBox, QBCore or ESX when one is running, and ox_inventory for items |
 | Input | Keyboard and mouse, controller |
+| Languages | English, Danish, Swedish (`Locale` in `configs/config.lua`) |
 | Stands in for | ox_target (its 1.17 API), qtarget, qb-target (its 5.5 API) |
 | Needs | [ox_lib](https://github.com/CommunityOx/ox_lib). Client only: no server script, no database |
 
