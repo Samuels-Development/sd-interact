@@ -24,8 +24,8 @@ do
     ---@type table qb-target's / qtarget's API (client.compat.qb_target).
     local qb = require 'client.compat.qb_target'
     local layers = { ox_target = ox, qtarget = qb, ['qb-target'] = qb }
-    local warning = 'Replace.%s is on and something called %s is started: '
-        .. 'if the real %s is still installed, remove it from your server.cfg'
+    local warning = 'Can’t replace %s while resource "%s" is running. '
+        .. 'Stop the real %s resource or remove it from server.cfg.'
 
     for name, on in pairs(config.Replace) do
         local layer = layers[name]
@@ -45,7 +45,7 @@ do
             end
 
             layer.provide(name)
-            lib.print.info(('answering %s exports'):format(name))
+            lib.print.info(('Using %s compatibility exports.'):format(name))
         end
     end
 end

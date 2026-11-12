@@ -261,7 +261,7 @@ function convert.qb(o, maxDistance)
                 TriggerEvent(d.event, d)
             end
         else
-            error('No trigger setup')
+            error('This option has no action or event.')
         end
     end
 

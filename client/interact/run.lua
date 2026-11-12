@@ -39,7 +39,7 @@ function run.option(c, o)
     end)
 
     if not ok then
-        lib.print.error(('option "%s" of a %s point failed: %s'):format(o.label, c.point.resource, tostring(err)))
+        lib.print.error(('Option "%s" from resource "%s" failed: %s'):format(o.label, c.point.resource, tostring(err)))
     end
 end
 

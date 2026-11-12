@@ -1,0 +1,11 @@
+{
+  "hold": "Håll",
+  "keymap": {
+    "interact": "Använd",
+    "next": "Nästa val",
+    "prev": "Föregående val",
+    "interact_pad": "Använd (handkontroll)",
+    "next_pad": "Nästa val (handkontroll)",
+    "prev_pad": "Föregående val (handkontroll)"
+  }
+}

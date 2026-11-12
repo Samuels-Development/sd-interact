@@ -59,6 +59,7 @@ local DEF = config.Interact
 ---@return InteractOption[]
 local function cleanOptions(list)
     local out = {}
+    local invalid = 0
 
     if type(list) ~= 'table' then
         return out
@@ -69,12 +70,14 @@ local function cleanOptions(list)
     end
 
     for _, o in ipairs(list) do
-        if type(o) == 'table' and type(o.label) == 'string' then
+        if type(o) == 'table' and type(o.label) == 'string' and o.label ~= '' then
             out[#out + 1] = o
+        else
+            invalid = invalid + 1
         end
     end
 
-    return out
+    return out, invalid
 end
 
 ---@param v any
@@ -104,10 +107,17 @@ local function make(kind, data, resource)
     lastId = lastId + 1
     data = type(data) == 'table' and data or {}
 
+    local options, invalid = cleanOptions(data.options or data)
+
+    if invalid > 0 then
+        lib.print.warn(('Resource "%s": skipped %d option(s) with no valid label. Each option needs a text label.')
+            :format(resource, invalid))
+    end
+
     local p = {
         id = lastId,
         kind = kind,
-        options = cleanOptions(data.options or data),
+        options = options,
         distance = tonumber(data.distance) or DEF.Distance,
         interactDistance = tonumber(data.interactDistance) or DEF.InteractDistance,
         lineOfSight = data.lineOfSight == nil and DEF.LineOfSight or data.lineOfSight == true,
@@ -129,6 +139,12 @@ end
 ---@param p InteractPoint
 ---@return integer id
 local function put(p)
+    if #p.options == 0 then
+        lib.print.warn(('Resource "%s": skipped a point with no valid options.')
+            :format(p.resource))
+        return nil
+    end
+
     all[p.id] = p
     points.version = points.version + 1
     return p.id
@@ -285,7 +301,20 @@ function points.update(id, data)
     if not p or type(data) ~= 'table' then return false end
 
     if data.options then
-        p.options = cleanOptions(data.options)
+        local options, invalid = cleanOptions(data.options)
+
+        if invalid > 0 then
+            lib.print.warn(('Resource "%s": skipped %d option(s) with no valid label while updating point %d.')
+                :format(p.resource, invalid, id))
+        end
+
+        if #options == 0 then
+            lib.print.warn(('Resource "%s": point %d needs at least one valid option. Update skipped.')
+                :format(p.resource, id))
+            return false
+        end
+
+        p.options = options
     end
 
     if data.distance then

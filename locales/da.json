@@ -1,0 +1,11 @@
+{
+  "hold": "Hold",
+  "keymap": {
+    "interact": "Brug",
+    "next": "Næste valg",
+    "prev": "Forrige valg",
+    "interact_pad": "Brug (controller)",
+    "next_pad": "Næste valg (controller)",
+    "prev_pad": "Forrige valg (controller)"
+  }
+}

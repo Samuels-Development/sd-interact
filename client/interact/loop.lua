@@ -156,7 +156,7 @@ local function take(c)
     shownSig = sig
 
     if config.Debug then
-        lib.print.info(('focus %s (%d options)'):format(c.key, #c.options))
+        lib.print.info(('Showing %s (%d options).'):format(c.key, #c.options))
     end
 end
 
