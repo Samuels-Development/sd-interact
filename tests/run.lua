@@ -80,6 +80,11 @@ check('off screen', focus.choose(l, nil, A, 0.22, 0.03) == nil)
 l = { cand('side', 0.6, 0.5, 1.0), cand('up', 0.5, 0.4, 1.0) }
 check('aspect corrected', focus.choose(l, nil, A, 0.22, 0.03).key == 'up')
 
+-- ox_lib's printer. Warnings are counted, so the registry's can be checked.
+local warned = 0
+local libPrint = { info = function() end, error = function() end, warn = function() warned = warned + 1 end }
+lib = { print = libPrint }
+
 -- the registry
 package.loaded['configs.config'] = { Interact = { Distance = 5.0, InteractDistance = 1.8, LineOfSight = true } }
 local points = dofile('client/interact/points.lua')
@@ -90,6 +95,7 @@ local id = points.addCoords(vec(1, 2, 3), {
 local p = points.get(id)
 check('coords point made', p and p.kind == 'coords' and #p.options == 2)
 check('unlabelled option dropped', p.options[2].label == 'Close')
+check('unlabelled option warned', warned == 1)
 check('defaults', p.distance == 5.0 and p.interactDistance == 1.8 and p.lineOfSight == true)
 
 local id2 = points.addCoords({ x = 0, y = 0, z = 0 }, {
@@ -125,6 +131,13 @@ points.removeResource('res_b')
 check('resource cleanup', points.get(id2) == nil and points.get(mid) == nil and points.get(id) ~= nil)
 check('version bumped', points.version > v0)
 check('bad coords refused', points.addCoords('nope', {}, 'res_a') == nil)
+
+warned = 0
+check('point with no valid option refused', points.addCoords(vec(0, 0, 0), {
+    options = { { icon = 'x' }, { label = '' } },
+}, 'res_a') == nil and warned == 2)
+check('update with no valid option refused', points.update(id, { options = { { label = '' } } }) == false
+    and points.get(id).options[1].label == 'Only')
 
 -- the stand-in layer: option conversion and removing by name
 local job = { name = 'police', grade = 2 }
@@ -278,7 +291,7 @@ GetCurrentResourceName = function() return 'sd-interact' end
 AddEventHandler = function() end
 
 local onPed
-lib = { onCache = function(key, fn) if key == 'ped' then onPed = fn end end }
+lib = { print = libPrint, onCache = function(key, fn) if key == 'ped' then onPed = fn end end }
 cache = { ped = 77 }
 IsPedAPlayer = function(e) return e == 77 end
 
