@@ -42,12 +42,13 @@ local function convertAll(params)
     return opts, reach
 end
 
----The registration data for a point with these options.
+---The registration data for a point with these options. On an entity, qb-target measures to where
+---the aim hits it, so the prompt sits where the entity is nearest the player (`surface`).
 ---@param opts table[]
 ---@param reach number
 ---@return table
 local function pointData(opts, reach)
-    return { options = opts, interactDistance = reach, distance = reach + 3.0 }
+    return { options = opts, interactDistance = reach, distance = reach + 3.0, surface = true }
 end
 
 ---@param opts table|nil qb zone options { minZ, maxZ }
@@ -195,7 +196,7 @@ local function build(name)
         for _, b in ipairs(list(bones)) do
             addOn('bone:' .. b, opts, function()
                 local data = pointData(opts, reach)
-                data.bone = b
+                data.bone, data.surface = b, false
                 return points.addGlobal('vehicle', data, res)
             end)
         end

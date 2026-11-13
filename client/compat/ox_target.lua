@@ -179,6 +179,8 @@ local function build(name)
                 options = g.options,
                 bone = g.bone,
                 offset = g.offset,
+                -- on no bone or offset, ox_target measures to where the aim hits the entity
+                surface = g.bone == nil and g.offset == nil,
                 interactDistance = reach,
                 distance = reach + 3.0,
             }))

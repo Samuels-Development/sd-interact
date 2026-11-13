@@ -323,7 +323,7 @@ local function frameThread()
             -- where each is this frame
             for _, c in ipairs(list) do
                 if c.entity and DoesEntityExist(c.entity) then
-                    c.pos = scan.anchor(c.point, c.entity)
+                    c.pos = scan.anchor(c.point, c.entity, from)
                 end
 
                 c.dist = #(c.pos - from)
@@ -411,7 +411,9 @@ function loop.focused()
 
     if not c then return nil end
 
-    return { id = c.point.id, entity = c.entity, coords = c.pos, option = state.selected }
+    -- (the selected option's point: a merged prompt holds several)
+    local e = c.options[state.selected]
+    return { id = (e and e.point or c.point).id, entity = c.entity, coords = c.pos, option = state.selected }
 end
 
 return loop

@@ -33,6 +33,7 @@ local config = require 'configs.config'
 ---@field global? 'vehicle'|'ped'|'object'|'player'
 ---@field offset? vector3 from the entity, in its own space
 ---@field bone? string|integer
+---@field surface boolean with no bone or offset: on the entity where it is nearest the player, not its middle
 ---@field options InteractOption[]
 ---@field distance number
 ---@field interactDistance number
@@ -124,6 +125,7 @@ local function make(kind, data, resource)
         allowInVehicle = data.allowInVehicle == true,
         offset = vec(data.offset),
         bone = data.bone,
+        surface = data.surface == true,
         groups = data.groups,
         name = data.name,
         resource = resource,

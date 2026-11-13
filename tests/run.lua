@@ -359,5 +359,69 @@ check('ox_target and qtarget keys are apart', not book.has('ox_target|model:' ..
 qtApi.AddTargetModel('prop_bin', { options = { { label = 'Kick', event = 'bin:kick2' } } })
 check('qtarget: an option added again under its label replaces it', #book.ids('qtarget|model:' .. binHash) == 1)
 
+-- an option with no bone or offset sits where the entity is nearest the player: ox_target and
+-- qb-target measure to where the aim hits it. Measured to a car's middle, ox_inventory's trunk
+-- (1.5 m, and its canInteract wants the player at the back) could never be reached.
+oxApi.addGlobalVehicle({ { name = 'trunk', label = 'Open trunk', distance = 1.5 } })
+oxApi.addGlobalVehicle({ { name = 'bonnet', label = 'Open bonnet', bones = { 'bonnet' } } })
+local plain = points.get(book.ids('ox_target|global:vehicle')[1])
+local boned
+for _, id in ipairs(book.ids('ox_target|global:vehicle')) do
+    local p = points.get(id)
+    if p and p.bone then boned = p end
+end
+check('ox: an option with no bone or offset sits on the near side', plain and plain.surface == true)
+check('ox: an option on a bone stays on the bone', boned and boned.surface == false)
+qtApi.AddTargetModel('prop_bin', { options = { { label = 'Kick', event = 'bin:kick3' } } })
+check('qtarget: an entity option sits on the near side', points.get(book.ids('qtarget|model:' .. binHash)[1]).surface == true)
+
+do
+    -- a car at the origin, unturned, 2 m wide and 4.6 m long
+    GetEntityModel = function() return 77 end
+    GetModelDimensions = function() return vec(-1.0, -2.3, -0.5), vec(1.0, 2.3, 1.0) end
+    GetOffsetFromEntityGivenWorldCoords = function(_, x, y, z) return vec(x, y, z) end
+    GetOffsetFromEntityInWorldCoords = function(_, x, y, z) return vec(x, y, z) end
+    package.loaded['configs.config'].Interact.Slack = 0.75
+    local scan = dofile('client/interact/scan.lua')
+    local behind = vec(0.2, -3.3, 0.4)
+    local onBoot = scan.anchor(plain, 9, behind)
+    check('anchor: from behind, on the back of the car', math.abs(onBoot.y + 2.3) < 1e-9 and math.abs(onBoot.x - 0.2) < 1e-9)
+    check('anchor: the trunk in reach from 1 m behind', #(onBoot - behind) <= 1.5 + 0.75)
+    local mid = scan.anchor({ kind = 'global' }, 9, behind)
+    check('anchor: a native point still sits in the middle', math.abs(mid.y) < 1e-9 and #(mid - behind) > 1.5 + 0.75)
+    local inside = vec(0.5, 1.0, 0.2)
+    check('anchor: inside the box, where the player is', #(scan.anchor(plain, 9, inside) - inside) < 1e-9)
+end
+
+-- prompts on one spot of one entity are one prompt, scrolled through: sd-wraps' "Design livery" (3 m)
+-- had sat on top of ox_inventory's "Open Storage" (1.5 m), which could never be picked
+do
+    local scan = dofile('client/interact/scan.lua')
+    local wraps = { id = 901, surface = true, interactDistance = 3.0, distance = 6.0, resource = 'sd-wraps' }
+    local inv = { id = 902, surface = true, interactDistance = 1.5, distance = 4.5, resource = 'ox_inventory' }
+    local bonnet = { id = 903, bone = 'bonnet', interactDistance = 2.0, distance = 5.0, resource = 'sd-pettycrime' }
+    local livery = { label = 'Design livery', distance = 3.0 }
+    local storage = { label = 'Open Storage', distance = 1.5 }
+    local function cand(p, o, entity)
+        return { key = p.id .. ':' .. entity, point = p, entity = entity, pos = vec(0, -2.3, 0.4), dist = 1.0,
+            reach = p.interactDistance + 0.75, options = { { option = o, index = 1, label = o.label, point = p } } }
+    end
+    local merged = scan.merge({ cand(wraps, livery, 9), cand(inv, storage, 9), cand(bonnet, { label = 'Cut Brake Lines' }, 9) })
+    local one = merged[1]
+    check('merge: one prompt for the shared spot, the bone apart', #merged == 2 and #one.options == 2 and merged[2].point == bonnet)
+    check('merge: closest range first', one.options[1].label == 'Open Storage' and one.options[2].label == 'Design livery')
+    check('merge: a key of its own, and the widest reach', one.key == 'spot:9:near' and one.reach == 3.75)
+    check('merge: another entity is another prompt', #scan.merge({ cand(wraps, livery, 9), cand(inv, storage, 10) }) == 2)
+    check('merge: alone, the same key as merged', scan.merge({ cand(wraps, livery, 9) })[1].key == 'spot:9:near')
+
+    -- picking a merged option runs it with its own point
+    lib = lib or { print = { error = print, warn = print, info = print } }
+    local run = dofile('client/interact/run.lua')
+    local gotId
+    storage.onSelect = function(data) gotId = data.id end
+    run.option(one, one.options[1].option, one.options[1].point)
+    check('merge: an option runs with the point it is from', gotId == 902)
+end
+
 print(('%d passed, %d failed'):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

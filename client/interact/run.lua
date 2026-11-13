@@ -7,9 +7,11 @@ local run = {}
 
 ---@param c InteractCandidate
 ---@param o InteractOption
-function run.option(c, o)
+---@param p? InteractPoint the point the option is from (a merged prompt has several; default the candidate's)
+function run.option(c, o, p)
+    p = p or c.point
     local data = {
-        id = c.point.id,
+        id = p.id,
         name = o.name,
         entity = c.entity,
         coords = c.pos,
@@ -39,7 +41,7 @@ function run.option(c, o)
     end)
 
     if not ok then
-        lib.print.error(('Option "%s" from resource "%s" failed: %s'):format(o.label, c.point.resource, tostring(err)))
+        lib.print.error(('Option "%s" from resource "%s" failed: %s'):format(o.label, p.resource, tostring(err)))
     end
 end
 

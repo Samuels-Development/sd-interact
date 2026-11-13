@@ -17,7 +17,7 @@ local groups = require 'client.interact.groups'
 ---@field entity integer|nil
 ---@field pos vector3
 ---@field dist number
----@field options { option: InteractOption, index: integer, label: string }[] the options shown, in order
+---@field options { option: InteractOption, index: integer, label: string, point: InteractPoint }[] the options shown, in order (each with the point it is from: a merged prompt has several)
 ---@field reach number the interact distance
 
 ---@type table Scan module; the table returned at end of file.
@@ -28,29 +28,47 @@ scan.candidates = {}
 
 local CFG = config.Interact
 
----@type table<integer, vector3> A model's bounding-box middle (the default anchor on an entity).
-local middles = {}
+---@type table<integer, { lo: vector3, hi: vector3, mid: vector3 }> A model's bounding box, and its middle (the default anchor on an entity).
+local boxes = {}
 
 ---@param entity integer
----@return vector3 offset from the entity's origin to its middle
-local function middle(entity)
+---@return { lo: vector3, hi: vector3, mid: vector3 } in the entity's own space
+local function box(entity)
     local model = GetEntityModel(entity)
-    local m = middles[model]
+    local b = boxes[model]
 
-    if not m then
+    if not b then
         local lo, hi = GetModelDimensions(model)
-        m = vector3((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2)
-        middles[model] = m
+        b = { lo = lo, hi = hi, mid = vector3((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2) }
+        boxes[model] = b
     end
 
-    return m
+    return b
 end
 
----Where a point's prompt goes on an entity: its bone, its offset, or the middle of its model.
+---The point of an entity's bounding box nearest `from` (`from` itself when it is inside the box).
+---ox_target and qb-target measure an option's distance to where the player's aim hits the entity,
+---which on a car can be its boot: measured to the car's middle, ox_inventory's trunk (1.5 m, and
+---only from behind the car) could never be reached.
+---@param entity integer
+---@param from vector3
+---@return vector3
+local function nearestOn(entity, from)
+    local b = box(entity)
+    local l = GetOffsetFromEntityGivenWorldCoords(entity, from.x, from.y, from.z)
+    local x = math.min(math.max(l.x, b.lo.x), b.hi.x)
+    local y = math.min(math.max(l.y, b.lo.y), b.hi.y)
+    local z = math.min(math.max(l.z, b.lo.z), b.hi.z)
+    return GetOffsetFromEntityInWorldCoords(entity, x, y, z)
+end
+
+---Where a point's prompt goes on an entity: its bone, its offset, where the entity is nearest the
+---player (a `surface` point, given `from`), or the middle of its model.
 ---@param p InteractPoint
 ---@param entity integer
+---@param from? vector3 the player
 ---@return vector3
-function scan.anchor(p, entity)
+function scan.anchor(p, entity, from)
     if p.bone then
         local idx
 
@@ -71,7 +89,11 @@ function scan.anchor(p, entity)
         end
     end
 
-    local o = p.offset or middle(entity)
+    if p.surface and from and not p.offset then
+        return nearestOn(entity, from)
+    end
+
+    local o = p.offset or box(entity).mid
     return GetOffsetFromEntityInWorldCoords(entity, o.x, o.y, o.z)
 end
 
@@ -112,7 +134,7 @@ local function usable(p, entity, pos, dist)
         end
 
         if ok then
-            out[#out + 1] = { option = o, index = i, label = label or o.label }
+            out[#out + 1] = { option = o, index = i, label = label or o.label, point = p }
         end
     end
 
@@ -142,6 +164,72 @@ local function consider(list, p, entity, pos, from)
         options = opts,
         reach = p.interactDistance + CFG.Slack,
     }
+end
+
+---Prompts on the same entity at the same spot become one, its options scrolled through like any
+---other prompt's. That is every point on the entity with no bone or offset (they all sit in its
+---middle, or all where it is nearest the player): ox_target shows all of an entity's options in one
+---menu, and apart they lie on top of each other and only the first can ever be picked (ox_inventory's
+---trunk under sd-wraps' "Design livery"). The closest-range point's options come first: what the
+---player is standing right at is the likeliest pick.
+---@param list InteractCandidate[]
+---@return InteractCandidate[]
+function scan.merge(list)
+    local out, spots = {}, {}
+
+    for _, c in ipairs(list) do
+        local p = c.point
+        local spot = c.entity and not p.bone and not p.offset and ('%d:%s'):format(c.entity, p.surface and 'near' or 'mid')
+        local g = spot and spots[spot]
+
+        if not spot then
+            out[#out + 1] = c
+        elseif not g then
+            -- (the same key merged or not: stepping into one more option's range keeps the prompt open)
+            c.key = 'spot:' .. spot
+            spots[spot] = { first = c, parts = { c } }
+            out[#out + 1] = c
+        else
+            g.parts[#g.parts + 1] = c
+        end
+    end
+
+    for _, g in pairs(spots) do
+        if #g.parts > 1 then
+            local function range(c)
+                local d = math.huge
+
+                for _, e in ipairs(c.options) do
+                    d = math.min(d, e.option.distance or c.point.interactDistance)
+                end
+
+                return d
+            end
+
+            table.sort(g.parts, function(a, b)
+                local ra, rb = range(a), range(b)
+                if ra ~= rb then return ra < rb end
+                return a.point.id < b.point.id
+            end)
+
+            local m = g.first
+            local options, reach = {}, 0
+
+            for _, c in ipairs(g.parts) do
+                for _, e in ipairs(c.options) do
+                    options[#options + 1] = e
+                end
+
+                reach = math.max(reach, c.reach)
+            end
+
+            m.options = options
+            m.reach = reach
+            m.point = g.parts[1].point
+        end
+    end
+
+    return out
 end
 
 ---Entities of the given pool near the player.
@@ -192,14 +280,14 @@ function scan.run(ped, inVehicle)
             consider(list, p, nil, p.coords, from)
         elseif p.kind == 'entity' then
             if DoesEntityExist(p.entity) then
-                consider(list, p, p.entity, scan.anchor(p, p.entity), from)
+                consider(list, p, p.entity, scan.anchor(p, p.entity, from), from)
             end
         elseif p.kind == 'net' then
             if NetworkDoesNetworkIdExist(p.netId) then
                 local e = NetworkGetEntityFromNetworkId(p.netId)
 
                 if e and e ~= 0 and DoesEntityExist(e) then
-                    consider(list, p, e, scan.anchor(p, e), from)
+                    consider(list, p, e, scan.anchor(p, e, from), from)
                 end
             end
         elseif p.kind == 'model' then
@@ -216,7 +304,7 @@ function scan.run(ped, inVehicle)
     local wantVehicles = wantModels or wantGlobal.vehicle
 
     if not wantObjects and not wantPeds and not wantVehicles then
-        scan.candidates = list
+        scan.candidates = scan.merge(list)
         return
     end
 
@@ -242,7 +330,7 @@ function scan.run(ped, inVehicle)
             for _, pool in pairs(pools) do
                 for _, e in ipairs(pool) do
                     if p.models[GetEntityModel(e)] and e ~= ped then
-                        consider(list, p, e, scan.anchor(p, e), from)
+                        consider(list, p, e, scan.anchor(p, e, from), from)
                     end
                 end
             end
@@ -257,7 +345,7 @@ function scan.run(ped, inVehicle)
 
             for _, e in ipairs(pool or {}) do
                 if e ~= ped and isKind(p.global, e) then
-                    consider(list, p, e, scan.anchor(p, e), from)
+                    consider(list, p, e, scan.anchor(p, e, from), from)
                 end
             end
         end
@@ -265,7 +353,7 @@ function scan.run(ped, inVehicle)
         ::skip::
     end
 
-    scan.candidates = list
+    scan.candidates = scan.merge(list)
 end
 
 return scan

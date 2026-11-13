@@ -44,9 +44,11 @@ function input.cancelHold()
     end
 end
 
-local function confirmed(c, o)
+---@param c InteractCandidate
+---@param entry { option: InteractOption, point: InteractPoint } the option picked, and the point it is from
+local function confirmed(c, entry)
     dui.confirm()
-    run.option(c, o)
+    run.option(c, entry.option, entry.point)
 end
 
 local function press()
@@ -61,11 +63,11 @@ local function press()
     local o = entry.option
 
     if not (o.hold and o.hold > 0) then
-        confirmed(c, o)
+        confirmed(c, entry)
         return
     end
 
-    local h = { key = c.key, index = state.selected, started = GetGameTimer(), ms = o.hold }
+    local h = { key = c.key, index = state.selected, option = o, started = GetGameTimer(), ms = o.hold }
     state.holding = h
     dui.hold(o.hold)
 
@@ -75,8 +77,11 @@ local function press()
                 state.holding = nil
                 local f = state.focus
 
-                if f and f.key == h.key and state.selected == h.index and f.options[h.index] then
-                    confirmed(f, f.options[h.index].option)
+                -- (still the same option: a merged prompt's list can change while it is held)
+                local e = f and f.key == h.key and state.selected == h.index and f.options[h.index]
+
+                if e and e.option == h.option then
+                    confirmed(f, e)
                 end
 
                 return
