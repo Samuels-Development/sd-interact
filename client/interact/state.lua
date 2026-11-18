@@ -4,7 +4,7 @@
 ---@class InteractState
 ---@field focus InteractCandidate|nil the candidate with the prompt open
 ---@field selected integer 1-based, into focus.options
----@field holding table|nil { key, index, started, ms } while a hold is under way
+---@field holding table|nil { key, index, option, started, ms } while a hold is under way
 ---@field disabled table<string, true> resources that have switched prompts off (exports.disable)
 ---@field device string 'keyboard'|'pad', what the player last used
 

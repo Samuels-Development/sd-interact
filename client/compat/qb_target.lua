@@ -87,19 +87,23 @@ local function build(name)
         own.add(key, add())
     end
 
+    local function replaceZone(zoneName, id)
+        if not id then return nil end
+
+        local key = 'zone:' .. tostring(zoneName)
+        own.remove(key) -- a zone added again under its name replaces the old one, as in qb-target
+        own.add(key, id)
+        return zoneName
+    end
+
     ---@param zoneName string
     ---@param centre vector3
     ---@param half number
     ---@param params table
     local function zone(zoneName, centre, half, params)
         local opts, reach = convertAll(params)
-        local key = 'zone:' .. tostring(zoneName)
-
-        own.remove(key) -- a zone added again under its name replaces the old one, as in qb-target
-
         reach = math.min(reach + math.min(half, 1.5), 5.5)
-        own.add(key, points.addCoords(centre, pointData(opts, reach), caller()))
-        return zoneName
+        return replaceZone(zoneName, points.addCoords(centre, pointData(opts, reach), caller()))
     end
 
     function api.AddBoxZone(zoneName, center, length, width, zoneOptions, targetoptions)
@@ -142,11 +146,7 @@ local function build(name)
 
     function api.AddEntityZone(zoneName, entity, zoneOptions, targetoptions)
         local opts, reach = convertAll(targetoptions)
-        local key = 'zone:' .. tostring(zoneName)
-
-        own.remove(key)
-        own.add(key, points.addLocalEntity(entity, pointData(opts, reach), caller()))
-        return zoneName
+        return replaceZone(zoneName, points.addLocalEntity(entity, pointData(opts, reach), caller()))
     end
 
     function api.RemoveZone(zoneName)

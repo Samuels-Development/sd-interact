@@ -1,0 +1,12 @@
+{
+  "hold": "Halten",
+  "scroll": "Scrollen zum Wechseln",
+  "keymap": {
+    "interact": "Benutzen",
+    "next": "Nächste Option",
+    "prev": "Vorherige Option",
+    "interact_pad": "Benutzen (Controller)",
+    "next_pad": "Nächste Option (Controller)",
+    "prev_pad": "Vorherige Option (Controller)"
+  }
+}

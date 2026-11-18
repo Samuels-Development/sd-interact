@@ -55,7 +55,7 @@ points.version = 0
 
 local DEF = config.Interact
 
----Tidy a list of options: drop anything without a label, keep the rest in order.
+---Keep options with a valid label and hold time, in order.
 ---@param list any
 ---@return InteractOption[]
 local function cleanOptions(list)
@@ -71,7 +71,11 @@ local function cleanOptions(list)
     end
 
     for _, o in ipairs(list) do
-        if type(o) == 'table' and type(o.label) == 'string' and o.label ~= '' then
+        local hold = type(o) == 'table' and tonumber(o.hold)
+
+        if type(o) == 'table' and type(o.label) == 'string' and o.label ~= ''
+            and (not o.hold or (hold and hold >= 0 and hold < math.huge)) then
+            o.hold = hold ~= 0 and hold or nil
             out[#out + 1] = o
         else
             invalid = invalid + 1
@@ -111,7 +115,7 @@ local function make(kind, data, resource)
     local options, invalid = cleanOptions(data.options or data)
 
     if invalid > 0 then
-        lib.print.warn(('Resource "%s": skipped %d option(s) with no valid label. Each option needs a text label.')
+        lib.print.warn(('Resource "%s": skipped %d option(s). Check that each has a text label and any hold time is 0 or more.')
             :format(resource, invalid))
     end
 
@@ -306,7 +310,7 @@ function points.update(id, data)
         local options, invalid = cleanOptions(data.options)
 
         if invalid > 0 then
-            lib.print.warn(('Resource "%s": skipped %d option(s) with no valid label while updating point %d.')
+            lib.print.warn(('Resource "%s": skipped %d option(s) on point %d. Check the labels and hold times.')
                 :format(p.resource, invalid, id))
         end
 
